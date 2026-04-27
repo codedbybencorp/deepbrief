@@ -2,6 +2,8 @@
 
 > **Ask anything. Get a cited research brief in seconds.**
 
+**[🌐 Landing Page](https://github.com/codedbybencorp/deepbrief-landing)** | **[📦 Main Repo](https://github.com/codedbybencorp/deepbrief)**
+
 DeepBrief searches the web, reads sources, and synthesizes comprehensive answers with inline citations. No more opening 20 tabs to understand a topic.
 
 ![demo](https://img.shields.io/badge/demo-live-brightgreen)
