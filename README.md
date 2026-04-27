@@ -130,4 +130,13 @@ MIT
 
 ---
 
+## What's Next
+
+- [ ] **Deploy backend to Fly.io** — Current priority. The landing page iframe demo only works locally. Deploying to Fly.io will make the live demo work for all visitors.
+- [ ] Add Stripe billing for hosted version
+- [ ] Chrome Web Store submission for extension
+- [ ] Add OpenRouter support for more LLM backends
+
+---
+
 Built with Claude Code + DuckDuckGo + Ollama
