@@ -34,7 +34,7 @@
         .tagline { color: var(--muted); font-size: 1.1rem; }
 
         /* Search */
-        .search-box { position: relative; margin-bottom: 2rem; }
+        .search-box { position: relative; margin-bottom: .75rem; }
         .search-box input {
             width: 100%; padding: 1rem 3.5rem 1rem 1.25rem;
             background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
@@ -52,6 +52,25 @@
         .search-box button:hover { background: var(--accent-light); }
         .search-box button:disabled { opacity: .5; cursor: not-allowed; }
 
+        /* PDF Upload */
+        .pdf-bar { display: flex; align-items: center; gap: .75rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+        .pdf-upload-btn {
+            display: inline-flex; align-items: center; gap: .4rem;
+            padding: .45rem .9rem; border-radius: 8px; border: 1px dashed var(--border);
+            background: var(--surface); color: var(--muted); font-size: .85rem; cursor: pointer;
+            transition: all .2s;
+        }
+        .pdf-upload-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .pdf-chip {
+            display: inline-flex; align-items: center; gap: .4rem;
+            padding: .35rem .7rem; border-radius: 8px;
+            background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.25);
+            font-size: .8rem; color: var(--accent-light);
+        }
+        .pdf-chip .remove { cursor: pointer; opacity: .7; }
+        .pdf-chip .remove:hover { opacity: 1; color: var(--red); }
+        input[type="file"] { display: none; }
+
         /* Status pills */
         .status-bar { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.5rem; min-height: 32px; }
         .pill {
@@ -62,9 +81,7 @@
         }
         .pill.active { border-color: var(--accent); background: rgba(99,102,241,0.08); }
         .pill.done { border-color: var(--green); background: rgba(34,197,94,0.08); }
-        .pill svg { width: 14px; height: 14px; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
@@ -99,7 +116,6 @@
         .answer-box sup { color: var(--accent); font-weight: 600; cursor: help; }
         .answer-box sup:hover { text-decoration: underline; }
 
-        /* Sources list */
         .sources-list { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
         .sources-list h3 { font-size: .9rem; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: .75rem; }
         .source-item { display: flex; gap: .7rem; align-items: start; padding: .6rem 0; }
@@ -108,7 +124,6 @@
         .source-title { font-size: .9rem; font-weight: 500; color: var(--text); }
         .source-domain { font-size: .78rem; color: var(--muted); }
 
-        /* History */
         .history-section { margin-top: 3rem; }
         .history-section h3 { font-size: .9rem; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: .75rem; }
         .history-item { padding: .8rem 1rem; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); margin-bottom: .5rem; cursor: pointer; transition: border-color .2s; }
@@ -117,10 +132,8 @@
         .history-meta { font-size: .75rem; color: var(--muted); margin-top: .2rem; }
 
         .empty-state { text-align: center; padding: 4rem 1rem; color: var(--muted); }
-        .empty-state svg { width: 48px; height: 48px; margin-bottom: 1rem; opacity: .3; }
         .stats { display: flex; gap: 1.5rem; font-size: .8rem; color: var(--muted); margin-top: 1rem; }
 
-        /* Responsive */
         @media (max-width: 640px) {
             .container { padding: 1.5rem 1rem; }
             .logo { font-size: 1.2rem; }
@@ -151,6 +164,14 @@
             </button>
         </div>
 
+        <div class="pdf-bar" id="pdfBar">
+            <label class="pdf-upload-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Add PDF
+                <input type="file" id="pdfInput" accept=".pdf" multiple onchange="handlePdfSelect(event)">
+            </label>
+        </div>
+
         <div class="status-bar" id="statusBar"></div>
         <div class="sources-strip" id="sourcesStrip"></div>
         <div id="result"></div>
@@ -163,6 +184,7 @@
 
     <script>
         let currentEventSource = null;
+        let uploadedPdfs = [];
         let history = JSON.parse(localStorage.getItem('deepbrief_history') || '[]');
 
         function renderHistory() {
@@ -189,25 +211,51 @@
             return div.innerHTML;
         }
 
+        function handlePdfSelect(e) {
+            const files = Array.from(e.target.files);
+            files.forEach(file => {
+                if (!file.name.endsWith('.pdf')) return;
+                uploadedPdfs.push(file);
+            });
+            renderPdfChips();
+        }
+
+        function renderPdfChips() {
+            const bar = document.getElementById('pdfBar');
+            // Keep the upload button, remove old chips
+            const btn = bar.querySelector('.pdf-upload-btn');
+            bar.innerHTML = '';
+            bar.appendChild(btn);
+            uploadedPdfs.forEach((file, i) => {
+                const chip = document.createElement('div');
+                chip.className = 'pdf-chip';
+                chip.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> ${escapeHtml(file.name)} <span class="remove" onclick="removePdf(${i})">&times;</span>`;
+                bar.appendChild(chip);
+            });
+        }
+
+        function removePdf(idx) {
+            uploadedPdfs.splice(idx, 1);
+            renderPdfChips();
+        }
+
         function addStatus(text, state) {
             const bar = document.getElementById('statusBar');
             const pill = document.createElement('div');
             pill.className = `pill ${state || ''}`;
             if (state === 'active') {
-                pill.innerHTML = `<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> ${text}`;
+                pill.innerHTML = `<svg class="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> ${text}`;
             } else if (state === 'done') {
-                pill.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> ${text}`;
+                pill.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> ${text}`;
             } else {
                 pill.textContent = text;
             }
             bar.appendChild(pill);
-            // Mark previous pills as done
             Array.from(bar.children).forEach((p, i) => {
                 if (i < bar.children.length - 1 && p.classList.contains('active')) {
                     p.classList.remove('active');
                     p.classList.add('done');
-                    p.innerHTML = p.innerHTML.replace('spin', '');
-                    p.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> ${p.textContent.replace('✓', '').trim()}`;
+                    p.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> ${p.textContent.replace('✓','').trim()}`;
                 }
             });
         }
@@ -223,37 +271,47 @@
             strip.appendChild(chip);
         }
 
-        function addSourcesList(sources) {
+        function addSourcesList(sources, pdfSources) {
             const result = document.getElementById('result');
             const div = document.createElement('div');
             div.className = 'sources-list';
-            div.innerHTML = '<h3>Sources</h3>' + sources.map((s, i) => `
+            let html = '<h3>Sources</h3>';
+            sources.forEach((s, i) => {
+                html += `
                 <div class="source-item">
                     <div class="source-num">${i+1}</div>
                     <div class="source-info">
                         <a href="${s.url}" target="_blank" rel="noopener" class="source-title">${escapeHtml(s.title)}</a>
                         <div class="source-domain">${escapeHtml(s.domain)}</div>
                     </div>
-                </div>
-            `).join('');
+                </div>`;
+            });
+            if (pdfSources && pdfSources.length) {
+                pdfSources.forEach((p, i) => {
+                    html += `
+                    <div class="source-item">
+                        <div class="source-num" style="background:var(--yellow)">P${i+1}</div>
+                        <div class="source-info">
+                            <span class="source-title">${escapeHtml(p.filename)}</span>
+                            <div class="source-domain">PDF Document</div>
+                        </div>
+                    </div>`;
+                });
+            }
+            div.innerHTML = html;
             result.appendChild(div);
         }
 
         function formatAnswer(text) {
-            // Convert markdown-ish to HTML
             text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
             text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
-            text = text.replace(/\[Source (\d+)\]/g, '<sup>[$1]</sup>');
-            text = text.replace(/\[(\d+)\]/g, '<sup>[$1]</sup>');
-            // Headers
+            text = text.replace(/\[(\w?)\d+\]/g, '<sup>$&</sup>');
             text = text.replace(/^### (.+)$/gm, '<h3>$1</h3>');
             text = text.replace(/^## (.+)$/gm, '<h2>$1</h2>');
             text = text.replace(/^# (.+)$/gm, '<h2>$1</h2>');
-            // Lists
             text = text.replace(/^- (.+)$/gm, '<li>$1</li>');
             text = text.replace(/(<li>.+<\/li>\n?)+/g, '<ul>$&</ul>');
             text = text.replace(/<\/ul>\s*<ul>/g, '');
-            // Paragraphs
             text = text.split('\n\n').map(p => {
                 if (p.startsWith('<h') || p.startsWith('<ul') || p.startsWith('<li')) return p;
                 return `<p>${p}</p>`;
@@ -265,78 +323,115 @@
             const query = document.getElementById('query').value.trim();
             if (!query) return;
 
-            // Cleanup previous
             if (currentEventSource) currentEventSource.close();
             document.getElementById('statusBar').innerHTML = '';
             document.getElementById('sourcesStrip').innerHTML = '';
             document.getElementById('result').innerHTML = '';
-
             document.getElementById('searchBtn').disabled = true;
             addStatus('Searching web...', 'active');
 
             const startTime = Date.now();
 
             try {
-                currentEventSource = new EventSource(`/brief?q=${encodeURIComponent(query)}`);
+                if (uploadedPdfs.length > 0) {
+                    // Use multipart upload endpoint
+                    const formData = new FormData();
+                    formData.append('q', query);
+                    uploadedPdfs.forEach(file => formData.append('files', file));
 
-                currentEventSource.onmessage = (e) => {
-                    const data = JSON.parse(e.data);
-                    const event = e.lastEventId || '';
-                };
-
-                currentEventSource.addEventListener('status', (e) => {
-                    const d = JSON.parse(e.data);
-                    addStatus(d.message, 'active');
-                });
-
-                currentEventSource.addEventListener('sources', (e) => {
-                    const d = JSON.parse(e.data);
-                    addStatus(`${d.count} sources found`, 'done');
-                });
-
-                currentEventSource.addEventListener('done', (e) => {
-                    const d = JSON.parse(e.data);
-                    currentEventSource.close();
-                    document.getElementById('searchBtn').disabled = false;
-
-                    // Render answer
-                    const result = document.getElementById('result');
-                    const box = document.createElement('div');
-                    box.className = 'answer-box';
-                    box.innerHTML = formatAnswer(d.answer);
-                    result.appendChild(box);
-
-                    // Render sources
-                    addSourcesList(d.sources);
-
-                    // Stats
-                    const stats = document.createElement('div');
-                    stats.className = 'stats';
-                    stats.innerHTML = `${d.sources.length} sources · ${d.search_time}s search · ${d.read_time}s read`;
-                    result.appendChild(stats);
-
-                    // Save to history
-                    history.unshift({
-                        query: d.query,
-                        sources: d.sources.length,
-                        time: Math.round((Date.now() - startTime) / 1000),
-                        date: new Date().toISOString()
+                    const resp = await fetch('/brief-with-pdfs', {
+                        method: 'POST',
+                        body: formData
                     });
-                    localStorage.setItem('deepbrief_history', JSON.stringify(history.slice(0, 20)));
-                    renderHistory();
-                });
-
-                currentEventSource.addEventListener('error', (e) => {
-                    const d = JSON.parse(e.data || '{"message":"Connection error"}');
-                    currentEventSource.close();
-                    document.getElementById('searchBtn').disabled = false;
-                    addStatus(d.message || 'Error', '');
-                });
-
+                    const reader = resp.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n\n');
+                        buffer = lines.pop() || '';
+                        for (const chunk of lines) {
+                            processEvent(chunk);
+                        }
+                    }
+                    if (buffer.trim()) processEvent(buffer.trim());
+                } else {
+                    // Use SSE endpoint
+                    currentEventSource = new EventSource(`/brief?q=${encodeURIComponent(query)}`);
+                    currentEventSource.addEventListener('status', e => {
+                        const d = JSON.parse(e.data);
+                        addStatus(d.message, 'active');
+                    });
+                    currentEventSource.addEventListener('sources', e => {
+                        const d = JSON.parse(e.data);
+                        addStatus(`${d.count} sources found`, 'done');
+                    });
+                    currentEventSource.addEventListener('done', e => {
+                        const d = JSON.parse(e.data);
+                        currentEventSource.close();
+                        renderResult(d, startTime);
+                    });
+                    currentEventSource.addEventListener('error', e => {
+                        currentEventSource.close();
+                        document.getElementById('searchBtn').disabled = false;
+                        const d = JSON.parse(e.data || '{"message":"Error"}');
+                        addStatus(d.message || 'Error', '');
+                    });
+                }
             } catch (err) {
                 document.getElementById('searchBtn').disabled = false;
                 addStatus('Error: ' + err.message, '');
             }
+        }
+
+        function processEvent(chunk) {
+            if (!chunk.includes('event:')) return;
+            const lines = chunk.split('\n');
+            let evt = '', data = '';
+            for (const line of lines) {
+                if (line.startsWith('event:')) evt = line.replace('event:', '').trim();
+                if (line.startsWith('data:')) data = line.replace('data:', '').trim();
+            }
+            if (evt === 'status') {
+                const d = JSON.parse(data);
+                addStatus(d.message, 'active');
+            } else if (evt === 'sources') {
+                const d = JSON.parse(data);
+                addStatus(`${d.count} sources found`, 'done');
+            } else if (evt === 'done') {
+                const d = JSON.parse(data);
+                renderResult(d, Date.now() - 5000); // approximate
+            } else if (evt === 'error') {
+                document.getElementById('searchBtn').disabled = false;
+                const d = JSON.parse(data);
+                addStatus(d.message || 'Error', '');
+            }
+        }
+
+        function renderResult(d, startTime) {
+            document.getElementById('searchBtn').disabled = false;
+            const result = document.getElementById('result');
+            const box = document.createElement('div');
+            box.className = 'answer-box';
+            box.innerHTML = formatAnswer(d.answer);
+            result.appendChild(box);
+            addSourcesList(d.sources || [], d.pdf_sources || []);
+            const stats = document.createElement('div');
+            stats.className = 'stats';
+            const totalSources = (d.sources?.length || 0) + (d.pdf_sources?.length || 0);
+            stats.innerHTML = `${totalSources} sources · ${d.search_time}s search · ${d.read_time}s read`;
+            result.appendChild(stats);
+
+            history.unshift({
+                query: d.query,
+                sources: totalSources,
+                time: Math.round((Date.now() - startTime) / 1000),
+                date: new Date().toISOString()
+            });
+            localStorage.setItem('deepbrief_history', JSON.stringify(history.slice(0, 20)));
+            renderHistory();
         }
 
         renderHistory();

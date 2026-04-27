@@ -1,6 +1,7 @@
 """
 DeepBrief — Research intelligence engine.
 Search the web, read sources, synthesize answers with citations.
+Supports PDF upload for cross-referencing.
 """
 
 import asyncio
@@ -10,6 +11,7 @@ import re
 import textwrap
 from dataclasses import dataclass, asdict
 from datetime import datetime
+from pathlib import Path
 from typing import AsyncIterator
 from urllib.parse import urlparse
 
@@ -25,7 +27,6 @@ class LLMClient:
 
 
 class OllamaClient(LLMClient):
-    """Local Ollama backend — no API key needed."""
     def __init__(self, model: str = "gemma-4-e4b", base_url: str = "http://localhost:11434"):
         self.model = model
         self.url = f"{base_url}/api/generate"
@@ -63,23 +64,18 @@ class OpenAIClient(LLMClient):
 
 
 def get_llm() -> LLMClient:
-    """Auto-detect best available LLM. Priority: OpenAI → Ollama → raise."""
     if key := os.environ.get("OPENAI_API_KEY"):
         try:
-            import openai
             return OpenAIClient(key)
         except Exception:
             pass
-    # Try Ollama
     try:
         import urllib.request
         urllib.request.urlopen("http://localhost:11434", timeout=2)
         return OllamaClient()
     except Exception:
         pass
-    raise RuntimeError(
-        "No LLM available. Set OPENAI_API_KEY or start Ollama (ollama run gemma-4-e4b)"
-    )
+    raise RuntimeError("No LLM available. Set OPENAI_API_KEY or start Ollama.")
 
 
 # ── Data models ────────────────────────────────────────────────────
@@ -97,13 +93,36 @@ class Source:
 
 
 @dataclass
+class PDFSource:
+    filename: str
+    text: str
+
+
+@dataclass
 class BriefResult:
     query: str
     answer: str
     sources: list[Source]
+    pdf_sources: list[PDFSource]
     search_time: float
     read_time: float
     generated_at: str
+
+
+# ── PDF parsing ────────────────────────────────────────────────────
+
+def extract_pdf_text(path: str | Path) -> str:
+    import fitz  # pymupdf
+    doc = fitz.open(str(path))
+    chunks = []
+    for page in doc:
+        text = page.get_text()
+        if text.strip():
+            chunks.append(text.strip())
+    doc.close()
+    full = "\n\n".join(chunks)
+    # Truncate to ~8000 chars to save context
+    return full[:8000]
 
 
 # ── Engine ─────────────────────────────────────────────────────────
@@ -161,51 +180,63 @@ class DeepBrief:
         return source
 
     # ── Synthesize ─────────────────────────────────────────────────
-    async def _synthesize(self, query: str, sources: list[Source]) -> str:
+    async def _synthesize(self, query: str, sources: list[Source], pdf_sources: list[PDFSource]) -> str:
         context_parts = []
         for i, s in enumerate(sources, 1):
             context_parts.append(
-                f"[Source {i}] {s.title}\nURL: {s.domain}\n{s.text[:3000]}"
+                f"[Web Source {i}] {s.title}\nURL: {s.domain}\n{s.text[:3000]}"
+            )
+        for i, p in enumerate(pdf_sources, 1):
+            context_parts.append(
+                f"[PDF Source {i}] {p.filename}\n{p.text[:3000]}"
             )
         context = "\n\n---\n\n".join(context_parts)
 
         system = textwrap.dedent("""\
             You are DeepBrief, a research intelligence engine.
-            Read the provided sources and write a comprehensive, fact-checked answer.
+            Read the provided web and PDF sources and write a comprehensive, fact-checked answer.
 
             Rules:
-            1. Every factual claim must cite its source using [1], [2], etc.
+            1. Every factual claim must cite its source using [W1], [W2] for web sources and [P1], [P2] for PDF sources.
             2. If sources conflict, present multiple viewpoints clearly.
             3. If information is missing, say so explicitly.
             4. Write in clear, professional prose. Use headings and bullet points.
-            5. End with a "Sources" section listing each citation number, title, and domain.
+            5. End with a "Sources" section listing each citation number, title, and domain/filename.
             6. Do NOT make up facts not present in the sources.
+            7. When PDF sources are provided, cross-reference them with web sources and highlight agreements or contradictions.
         """)
         user = f"Question: {query}\n\nSources:\n{context}"
         return await self.llm.complete(system, user)
 
     # ── Stream ─────────────────────────────────────────────────────
-    async def stream_brief(self, query: str) -> AsyncIterator[str]:
+    async def stream_brief(
+        self, query: str, pdf_sources: list[PDFSource] | None = None
+    ) -> AsyncIterator[str]:
         import time
         t0 = time.time()
+        pdf_sources = pdf_sources or []
 
         yield _sse("status", {"step": "search", "message": f"Searching the web for: {query}"})
         sources = await self._search(query)
         yield _sse("sources", {"count": len(sources), "urls": [s.url for s in sources]})
         search_time = time.time() - t0
 
-        yield _sse("status", {"step": "read", "message": f"Reading {min(4, len(sources))} sources..."})
+        yield _sse("status", {"step": "read", "message": f"Reading {min(4, len(sources))} web sources..."})
         read_tasks = [self._read(s) for s in sources[:4]]
         read_sources = await asyncio.gather(*read_tasks)
         read_time = time.time() - t0 - search_time
 
+        if pdf_sources:
+            yield _sse("status", {"step": "pdf", "message": f"Analyzing {len(pdf_sources)} PDF document(s)..."})
+
         yield _sse("status", {"step": "synthesize", "message": "Synthesizing answer with citations..."})
-        answer = await self._synthesize(query, list(read_sources))
+        answer = await self._synthesize(query, list(read_sources), pdf_sources)
 
         result = BriefResult(
             query=query,
             answer=answer,
             sources=list(read_sources),
+            pdf_sources=pdf_sources,
             search_time=round(search_time, 2),
             read_time=round(read_time, 2),
             generated_at=datetime.utcnow().isoformat() + "Z",
