@@ -1,0 +1,14 @@
+services:
+  deepbrief:
+    build: .
+    container_name: deepbrief
+    ports:
+      - "8090:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

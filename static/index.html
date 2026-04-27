@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepBrief — Research Intelligence</title>
+    <style>
+        :root {
+            --bg: #0c0e12;
+            --surface: #13161c;
+            --surface-hover: #1a1f28;
+            --border: #232838;
+            --text: #e1e5ee;
+            --muted: #8b92a8;
+            --accent: #6366f1;
+            --accent-light: #818cf8;
+            --green: #22c55e;
+            --yellow: #eab308;
+            --red: #ef4444;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        .container { max-width: 840px; margin: 0 auto; padding: 3rem 1.5rem; }
+        header { text-align: center; margin-bottom: 3rem; }
+        .logo { display: inline-flex; align-items: center; gap: .6rem; font-size: 1.5rem; font-weight: 700; margin-bottom: .5rem; }
+        .logo-icon { width: 32px; height: 32px; border-radius: 8px; background: var(--accent); display: flex; align-items: center; justify-content: center; }
+        .logo-icon svg { width: 18px; height: 18px; }
+        .tagline { color: var(--muted); font-size: 1.1rem; }
+
+        /* Search */
+        .search-box { position: relative; margin-bottom: 2rem; }
+        .search-box input {
+            width: 100%; padding: 1rem 3.5rem 1rem 1.25rem;
+            background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+            color: var(--text); font-size: 1.05rem; outline: none;
+            transition: border-color .2s, box-shadow .2s;
+        }
+        .search-box input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99,102,241,0.15); }
+        .search-box input::placeholder { color: var(--muted); }
+        .search-box button {
+            position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+            padding: .6rem 1.2rem; border-radius: 10px; border: none;
+            background: var(--accent); color: white; font-weight: 600; cursor: pointer;
+            transition: background .2s;
+        }
+        .search-box button:hover { background: var(--accent-light); }
+        .search-box button:disabled { opacity: .5; cursor: not-allowed; }
+
+        /* Status pills */
+        .status-bar { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.5rem; min-height: 32px; }
+        .pill {
+            display: inline-flex; align-items: center; gap: .4rem;
+            padding: .35rem .75rem; border-radius: 20px; font-size: .8rem;
+            background: var(--surface); border: 1px solid var(--border);
+            animation: fadeIn .3s ease;
+        }
+        .pill.active { border-color: var(--accent); background: rgba(99,102,241,0.08); }
+        .pill.done { border-color: var(--green); background: rgba(34,197,94,0.08); }
+        .pill svg { width: 14px; height: 14px; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        /* Sources strip */
+        .sources-strip { display: flex; gap: .5rem; overflow-x: auto; padding: .5rem 0; margin-bottom: 1rem; }
+        .source-chip {
+            flex-shrink: 0; padding: .4rem .7rem; border-radius: 8px;
+            background: var(--surface); border: 1px solid var(--border);
+            font-size: .78rem; color: var(--muted); cursor: pointer;
+            transition: border-color .2s, color .2s;
+            max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .source-chip:hover { border-color: var(--accent); color: var(--text); }
+        .source-chip .domain { color: var(--accent); font-weight: 500; }
+
+        /* Answer */
+        .answer-box {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+            padding: 1.5rem; line-height: 1.75; font-size: .98rem;
+            opacity: 0; animation: fadeIn .5s ease forwards;
+        }
+        .answer-box h2 { font-size: 1.2rem; margin: 1.5rem 0 .5rem; color: var(--text); }
+        .answer-box h2:first-child { margin-top: 0; }
+        .answer-box h3 { font-size: 1.05rem; margin: 1.2rem 0 .4rem; color: var(--text); }
+        .answer-box p { margin: .6rem 0; }
+        .answer-box ul, .answer-box ol { margin: .6rem 0 .6rem 1.5rem; }
+        .answer-box li { margin: .3rem 0; }
+        .answer-box a { color: var(--accent); }
+        .answer-box blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1rem 0; color: var(--muted); }
+        .answer-box code { background: rgba(99,102,241,0.1); padding: .1rem .3rem; border-radius: 4px; font-size: .9em; }
+        .answer-box pre { background: var(--bg); padding: 1rem; border-radius: 8px; overflow-x: auto; }
+        .answer-box sup { color: var(--accent); font-weight: 600; cursor: help; }
+        .answer-box sup:hover { text-decoration: underline; }
+
+        /* Sources list */
+        .sources-list { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+        .sources-list h3 { font-size: .9rem; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: .75rem; }
+        .source-item { display: flex; gap: .7rem; align-items: start; padding: .6rem 0; }
+        .source-num { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: white; font-size: .75rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .source-info { min-width: 0; }
+        .source-title { font-size: .9rem; font-weight: 500; color: var(--text); }
+        .source-domain { font-size: .78rem; color: var(--muted); }
+
+        /* History */
+        .history-section { margin-top: 3rem; }
+        .history-section h3 { font-size: .9rem; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: .75rem; }
+        .history-item { padding: .8rem 1rem; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); margin-bottom: .5rem; cursor: pointer; transition: border-color .2s; }
+        .history-item:hover { border-color: var(--accent); }
+        .history-q { font-size: .9rem; font-weight: 500; }
+        .history-meta { font-size: .75rem; color: var(--muted); margin-top: .2rem; }
+
+        .empty-state { text-align: center; padding: 4rem 1rem; color: var(--muted); }
+        .empty-state svg { width: 48px; height: 48px; margin-bottom: 1rem; opacity: .3; }
+        .stats { display: flex; gap: 1.5rem; font-size: .8rem; color: var(--muted); margin-top: 1rem; }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .container { padding: 1.5rem 1rem; }
+            .logo { font-size: 1.2rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+                    </svg>
+                </div>
+                DeepBrief
+            </div>
+            <p class="tagline">Ask anything. Get a cited research brief in seconds.</p>
+        </header>
+
+        <div class="search-box">
+            <input type="text" id="query" placeholder="What are the latest developments in AI regulation?"
+                onkeydown="if(event.key==='Enter') startResearch()" autocomplete="off">
+            <button id="searchBtn" onclick="startResearch()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="status-bar" id="statusBar"></div>
+        <div class="sources-strip" id="sourcesStrip"></div>
+        <div id="result"></div>
+
+        <div class="history-section" id="historySection" style="display:none">
+            <h3>Recent Research</h3>
+            <div id="historyList"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentEventSource = null;
+        let history = JSON.parse(localStorage.getItem('deepbrief_history') || '[]');
+
+        function renderHistory() {
+            const list = document.getElementById('historyList');
+            const section = document.getElementById('historySection');
+            if (history.length === 0) { section.style.display = 'none'; return; }
+            section.style.display = 'block';
+            list.innerHTML = history.slice(0, 10).map((h, i) => `
+                <div class="history-item" onclick="loadHistory(${i})">
+                    <div class="history-q">${escapeHtml(h.query)}</div>
+                    <div class="history-meta">${h.sources} sources · ${h.time}s · ${new Date(h.date).toLocaleDateString()}</div>
+                </div>
+            `).join('');
+        }
+
+        function loadHistory(idx) {
+            document.getElementById('query').value = history[idx].query;
+            startResearch();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function addStatus(text, state) {
+            const bar = document.getElementById('statusBar');
+            const pill = document.createElement('div');
+            pill.className = `pill ${state || ''}`;
+            if (state === 'active') {
+                pill.innerHTML = `<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> ${text}`;
+            } else if (state === 'done') {
+                pill.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> ${text}`;
+            } else {
+                pill.textContent = text;
+            }
+            bar.appendChild(pill);
+            // Mark previous pills as done
+            Array.from(bar.children).forEach((p, i) => {
+                if (i < bar.children.length - 1 && p.classList.contains('active')) {
+                    p.classList.remove('active');
+                    p.classList.add('done');
+                    p.innerHTML = p.innerHTML.replace('spin', '');
+                    p.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> ${p.textContent.replace('✓', '').trim()}`;
+                }
+            });
+        }
+
+        function addSourceChip(title, domain, url) {
+            const strip = document.getElementById('sourcesStrip');
+            const chip = document.createElement('a');
+            chip.className = 'source-chip';
+            chip.href = url;
+            chip.target = '_blank';
+            chip.rel = 'noopener';
+            chip.innerHTML = `<span class="domain">${escapeHtml(domain)}</span> · ${escapeHtml(title.substring(0,40))}`;
+            strip.appendChild(chip);
+        }
+
+        function addSourcesList(sources) {
+            const result = document.getElementById('result');
+            const div = document.createElement('div');
+            div.className = 'sources-list';
+            div.innerHTML = '<h3>Sources</h3>' + sources.map((s, i) => `
+                <div class="source-item">
+                    <div class="source-num">${i+1}</div>
+                    <div class="source-info">
+                        <a href="${s.url}" target="_blank" rel="noopener" class="source-title">${escapeHtml(s.title)}</a>
+                        <div class="source-domain">${escapeHtml(s.domain)}</div>
+                    </div>
+                </div>
+            `).join('');
+            result.appendChild(div);
+        }
+
+        function formatAnswer(text) {
+            // Convert markdown-ish to HTML
+            text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
+            text = text.replace(/\[Source (\d+)\]/g, '<sup>[$1]</sup>');
+            text = text.replace(/\[(\d+)\]/g, '<sup>[$1]</sup>');
+            // Headers
+            text = text.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+            text = text.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+            text = text.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+            // Lists
+            text = text.replace(/^- (.+)$/gm, '<li>$1</li>');
+            text = text.replace(/(<li>.+<\/li>\n?)+/g, '<ul>$&</ul>');
+            text = text.replace(/<\/ul>\s*<ul>/g, '');
+            // Paragraphs
+            text = text.split('\n\n').map(p => {
+                if (p.startsWith('<h') || p.startsWith('<ul') || p.startsWith('<li')) return p;
+                return `<p>${p}</p>`;
+            }).join('\n');
+            return text;
+        }
+
+        async function startResearch() {
+            const query = document.getElementById('query').value.trim();
+            if (!query) return;
+
+            // Cleanup previous
+            if (currentEventSource) currentEventSource.close();
+            document.getElementById('statusBar').innerHTML = '';
+            document.getElementById('sourcesStrip').innerHTML = '';
+            document.getElementById('result').innerHTML = '';
+
+            document.getElementById('searchBtn').disabled = true;
+            addStatus('Searching web...', 'active');
+
+            const startTime = Date.now();
+
+            try {
+                currentEventSource = new EventSource(`/brief?q=${encodeURIComponent(query)}`);
+
+                currentEventSource.onmessage = (e) => {
+                    const data = JSON.parse(e.data);
+                    const event = e.lastEventId || '';
+                };
+
+                currentEventSource.addEventListener('status', (e) => {
+                    const d = JSON.parse(e.data);
+                    addStatus(d.message, 'active');
+                });
+
+                currentEventSource.addEventListener('sources', (e) => {
+                    const d = JSON.parse(e.data);
+                    addStatus(`${d.count} sources found`, 'done');
+                });
+
+                currentEventSource.addEventListener('done', (e) => {
+                    const d = JSON.parse(e.data);
+                    currentEventSource.close();
+                    document.getElementById('searchBtn').disabled = false;
+
+                    // Render answer
+                    const result = document.getElementById('result');
+                    const box = document.createElement('div');
+                    box.className = 'answer-box';
+                    box.innerHTML = formatAnswer(d.answer);
+                    result.appendChild(box);
+
+                    // Render sources
+                    addSourcesList(d.sources);
+
+                    // Stats
+                    const stats = document.createElement('div');
+                    stats.className = 'stats';
+                    stats.innerHTML = `${d.sources.length} sources · ${d.search_time}s search · ${d.read_time}s read`;
+                    result.appendChild(stats);
+
+                    // Save to history
+                    history.unshift({
+                        query: d.query,
+                        sources: d.sources.length,
+                        time: Math.round((Date.now() - startTime) / 1000),
+                        date: new Date().toISOString()
+                    });
+                    localStorage.setItem('deepbrief_history', JSON.stringify(history.slice(0, 20)));
+                    renderHistory();
+                });
+
+                currentEventSource.addEventListener('error', (e) => {
+                    const d = JSON.parse(e.data || '{"message":"Connection error"}');
+                    currentEventSource.close();
+                    document.getElementById('searchBtn').disabled = false;
+                    addStatus(d.message || 'Error', '');
+                });
+
+            } catch (err) {
+                document.getElementById('searchBtn').disabled = false;
+                addStatus('Error: ' + err.message, '');
+            }
+        }
+
+        renderHistory();
+    </script>
+</body>
+</html>
