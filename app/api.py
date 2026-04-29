@@ -13,6 +13,7 @@ templates = Jinja2Templates(directory="static")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 OPENAI_KEY = os.environ.get("OPENAI_API_KEY")
+TAVILY_KEY = os.environ.get("TAVILY_API_KEY")
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):

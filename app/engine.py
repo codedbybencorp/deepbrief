@@ -133,6 +133,24 @@ class DeepBrief:
 
     # ── Search ─────────────────────────────────────────────────────
     async def _search(self, query: str, limit: int = 8) -> list[Source]:
+        if os.environ.get("TAVILY_API_KEY"):
+            return await self._search_tavily(query, limit)
+        return await self._search_ddg(query, limit)
+
+    async def _search_tavily(self, query: str, limit: int = 8) -> list[Source]:
+        from tavily import AsyncTavilyClient
+        client = AsyncTavilyClient()
+        response = await client.search(query=query, max_results=limit)
+        results = []
+        for r in response.get("results", []):
+            results.append(Source(
+                url=r.get("url", ""),
+                title=r.get("title", ""),
+                snippet=r.get("content", ""),
+            ))
+        return results
+
+    async def _search_ddg(self, query: str, limit: int = 8) -> list[Source]:
         url = "https://html.duckduckgo.com/html/"
         headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
